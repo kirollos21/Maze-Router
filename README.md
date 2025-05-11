@@ -27,9 +27,9 @@ python router.py <input_file> <output_file>
 
 ## Test Cases
 Three test cases are provided in the `test_cases` directory:
-1. `test1.txt`: Simple 2-pin net
-2. `test2.txt`: Multiple nets with obstacles
-3. `test3.txt`: Complex routing scenario
+1. `test1.txt`
+2. `test2.txt`
+3. `test3.txt`
 
 ## Input Format
 The input file should follow this format:
