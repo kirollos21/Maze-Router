@@ -4,7 +4,6 @@ This is the first milestone implementation of a maze router using Lee's algorith
 
 ## Project Structure
 - `router.py`: Main router implementation
-- `visualizer.py`: Script to visualize routing results
 - `test_cases/`: Directory containing test cases
 - `requirements.txt`: Python dependencies
 
@@ -25,8 +24,6 @@ python router.py <input_file> <output_file>
 - Single-layer routing only
 - Basic Lee's algorithm implementation
 - No via support
-- No net reordering
-- No rip-up and re-route
 
 ## Test Cases
 Three test cases are provided in the `test_cases` directory:
