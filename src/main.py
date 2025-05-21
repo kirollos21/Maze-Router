@@ -1,79 +1,63 @@
 import sys
 import os
-import re
+import argparse
+from parser import MazeRouterInput
 from router import MazeRouter
+from visualization import plot_routed_nets
 
-def parse_dimensions(line):
-    match = re.match(r'(\d+)x(\d+)', line.strip())
-    if not match:
-        raise ValueError(f"Invalid dimensions format: {line}")
-    return int(match.group(1)), int(match.group(2))
+def parse_arguments():
+    parser = argparse.ArgumentParser(description='Maze Router with configurable costs')
+    parser.add_argument('input_file', help='Input file path')
+    parser.add_argument('output_file', help='Output file path')
+    parser.add_argument('--via-penalty', type=int, default=None,
+                      help='Cost penalty for vias (layer changes). If not specified, uses value from input file.')
+    parser.add_argument('--wrong-direction-penalty', type=int, default=None,
+                      help='Cost penalty for routing in non-preferred direction. If not specified, uses value from input file.')
+    return parser.parse_args()
 
-def parse_net(line):
-    net_name = line.split()[0]
-    coords = re.findall(r'\((\d+),\s*(\d+),\s*(\d+)\)', line)
-    
-    if len(coords) < 2:
-        raise ValueError(f"Invalid net format: {line}")
-    
-    layer = int(coords[0][0])
-    start = tuple(map(int, coords[0][1:]))
-    end = tuple(map(int, coords[1][1:]))
-    return net_name, layer, start, end
+def write_routing_results(output_file: str, routing_results: dict):
+    with open(output_file, 'w') as f:
+        for net_name, result in routing_results.items():
+            if result:
+                path, wire_length, via_count = result
+                path_str = ' '.join(f"({layer}, {x}, {y})" for layer, x, y in path)
+                f.write(f"{net_name} {path_str}\n")
+                print(f"Successfully routed {net_name}")
+                print(f"Wire length: {wire_length}, Vias: {via_count}")
+            else:
+                print(f"Warning: Could not route {net_name}")
 
 def main():
-    if len(sys.argv) != 3:
-        print("Usage: python main.py <input_file> <output_file>")
-        sys.exit(1)
+    args = parse_arguments()
 
-    input_file = sys.argv[1]
-    output_file = sys.argv[2]
+    # Parse input file and create router input
+    router_input = MazeRouterInput.from_file(args.input_file)
 
-    with open(input_file, 'r') as f:
-        lines = f.readlines()
+    # Create router with optional penalty overrides
+    router = MazeRouter(
+        router_input,
+        via_penalty=args.via_penalty,
+        wrong_direction_penalty=args.wrong_direction_penalty
+    )
     
-    width, height = parse_dimensions(lines[0])
-    router = MazeRouter(width, height)
+    # Print penalty values being used
+    print(f"\nUsing penalties:")
+    print(f"Via penalty: {router.via_penalty}")
+    print(f"Wrong direction penalty: {router.wrong_direction_penalty}\n")
     
-    nets = []
-    current_line = 1
-    while current_line < len(lines) and lines[current_line].strip():
-        line = lines[current_line].strip()
-        if line and not line.startswith('#'):
-            try:
-                net_name, layer, start, end = parse_net(line)
-                nets.append((net_name, layer, start, end))
-            except ValueError as e:
-                print(f"Warning: Skipping invalid net: {e}")
-        current_line += 1
+    routing_results = {}
+    for net in router_input.nets:
+        result = router.route_net(net)
+        if result:
+            routing_results[net['name']] = result
+
+    # Write output file
+    write_routing_results(args.output_file, routing_results)
     
-    obstacles = []
-    while current_line < len(lines):
-        line = lines[current_line].strip()
-        if line and not line.startswith('#'):
-            if line.startswith('OBS'):
-                match = re.search(r'\((\d+),\s*(\d+)\)', line)
-                if match:
-                    x, y = map(int, match.groups())
-                    obstacles.append((x, y))
-                    router.add_obstacle(x, y)
-        current_line += 1
-
-    routed_nets = []
-    for net_name, layer, start, end in nets:
-        path = router.route_net(start, end)
-        if path:
-            path_with_layer = [(layer, x, y) for x, y in path]
-            routed_nets.append((net_name, path_with_layer))
-
-    if routed_nets:
-        with open(output_file, 'w') as f:
-            for net_name, path in routed_nets:
-                if path:
-                    path_str = ' '.join(f"({layer}, {x}, {y})" for layer, x, y in path)
-                    f.write(f"{net_name} {path_str}\n")
-    else:
-        open(output_file, 'w').close()
+    # Generate visualizations
+    output_dir = os.path.dirname(args.output_file)
+    plot_routed_nets(routing_results, router_input, output_dir)
+    print(f"\nVisualizations saved in {output_dir}")
 
 if __name__ == "__main__":
     main()
